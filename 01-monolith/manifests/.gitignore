@@ -1,0 +1,3 @@
+# environment variables
+postgres/config/postgres.env
+todo-app-client/config/client.env

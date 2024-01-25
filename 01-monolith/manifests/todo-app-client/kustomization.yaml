@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  app: todo-app
+resources:
+- todo-app-deployment.yaml
+- todo-app-service.yaml
+
+configMapGenerator:
+  - name: todo-app-cm
+    envs:
+    - config/client.env
+    
+generatorOptions:
+  disableNameSuffixHash: true # use a static name

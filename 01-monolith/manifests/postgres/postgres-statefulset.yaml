@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:  
+  selector:
+    matchLabels:
+      app: postgres     
+  serviceName: postgres
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Delete
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: binarylavender/todo-app-postgres:v1
+        envFrom:
+        - configMapRef:
+            name: postgres-cm
+        ports:
+        - containerPort: 5432
+          name: postgres        
+        volumeMounts:
+        - name: todos-db-pv05
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+      #volumes:
+      #- name: todos-db-pv05
+      #  persistentVolumeClaim:
+      #    claimName: mypvc
+  volumeClaimTemplates:
+    - metadata:
+        name: todos-db-pv05
+      spec:
+        storageClassName: mysc
+        accessModes:
+          - ReadWriteOnce
+        #volumeName: mypv
+        resources:
+          requests:
+            storage: 256Mi

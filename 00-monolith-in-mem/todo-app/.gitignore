@@ -1,0 +1,17 @@
+# local installed dependencies
+node_modules/
+dist/
+frontend/node_modules/
+
+# environment variables
+.env
+.env.template
+.env.test
+
+# local development
+nodemon.json
+jest.config.js
+jest.e2e.config.js
+
+# tools configuration
+.prettierrc

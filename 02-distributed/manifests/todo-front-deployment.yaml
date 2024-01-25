@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-front-deployment
+  labels:
+    app: todo-front
+spec:
+  selector:
+    matchLabels:
+      app: todo-front
+  template:
+    metadata:
+      labels:
+        app: todo-front  
+    spec:
+      containers:
+      - name: todo-front
+        image: binarylavender/todo-front-distributed:v1
+        #args:
+        #  - "API_HOST"
+        env:
+          - name: API_HOST
+            value: "http://lc.todo.info"
+        ports:
+          - containerPort: 80
+            name: http-web-svc
+        resources:       
+          limits:
+            memory: "128Mi"
+            cpu: "250m"
