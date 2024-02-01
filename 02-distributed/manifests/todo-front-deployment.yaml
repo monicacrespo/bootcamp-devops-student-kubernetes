@@ -15,16 +15,16 @@ spec:
     spec:
       containers:
       - name: todo-front
-        image: binarylavender/todo-front-distributed:v1
+        image: binarylavender/todo-front-distributed:v2
+        imagePullPolicy: IfNotPresent
         #args:
         #  - "API_HOST"
-        env:
-          - name: API_HOST
-            value: "http://lc.todo.info"
+        #env:
+        #  - name: API_HOST
+        #    value: "http://lc.todo.info"
         ports:
           - containerPort: 80
-            name: http-web-svc
-        resources:       
+        resources:
           limits:
             memory: "128Mi"
             cpu: "250m"

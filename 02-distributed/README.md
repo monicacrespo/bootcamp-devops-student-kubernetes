@@ -6,6 +6,7 @@
 5. [Cleaning Up](#cleaning)
 
 <a name="intro"></a>
+
 ## 1. Introduction 
 Create the Kubernetes resources to build a cluster like the following picture:
 
@@ -36,25 +37,222 @@ Solution structure
 
 <a name="setupIngress"></a>
 ## 2. Set up Ingress on Minikube with the NGINX Ingress Controller
-[Enable the Ingress controller](https://kubernetes.io/docs/tasks/access-application-cluster/ingress-minikube/)
 
-1. To enable the NGINX Ingress controller, run the following commands:
 
-    ```bash
-    minikube addons enable ingress-dns
-    minikube addons enable ingress
-    ```
-2. Verify that the NGINX Ingress controller is running
-    ```bash
-    $ kubectl get pods -n ingress-nginx
-    NAME                                        READY   STATUS      RESTARTS       AGE
-    ingress-nginx-admission-create-4xwhq        0/1     Completed   1              9d 
-    ingress-nginx-admission-patch-ttx9p         0/1     Completed   2              9d 
-    ingress-nginx-controller-7799c6795f-9chjs   1/1     Running     10 (36m ago)   9d 
-    ```
+### Create a minikube cluster
+
+My device is running in Windows, and I can't access Minikube (v1.31.2) Ingress on Docker-Driver. The reason is because, at this moment, January 2024, Ingress is supported out-of-the-box on linux only. See more information in [Docker Driver - Known issues #7332](https://github.com/kubernetes/minikube/issues/7332). 
+
+Them, for this exercise I will be using the [Hyper-V](https://minikube.sigs.k8s.io/docs/drivers/hyperv/) driver.
+
+#### Enabling Hyper-V
+Open a PowerShell console as Administrator, and run the following command: 
+```shell
+Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
+```
+
+If Hyper-V was not previously active, you will need to reboot.
+
+#### Usage
+```shell
+minikube delete --all
+```
+```shell
+minikube start --driver=hyperv 
+```
+
+#### Enable the NGINX Ingress controller
+Please follow the instructions to set up Ingres on Minikube in 
+[enable the NGINX Ingress controller](https://kubernetes.io/docs/tasks/access-application-cluster/ingress-minikube/) page.
+
+To enable the NGINX Ingress controller, run the following commands:
+
+```bash
+minikube addons enable ingress
+```
+
+```bash
+minikube addons enable ingress-dns
+```
+
+Verify that the NGINX Ingress controller is running
+```bash
+$ kubectl get pods -n ingress-nginx
+NAME                                        READY   STATUS      RESTARTS   AGE
+ingress-nginx-admission-create-4fqf4        0/1     Completed   0          17m
+ingress-nginx-admission-patch-pr25q         0/1     Completed   1          17m
+ingress-nginx-controller-7799c6795f-sdcck   1/1     Running     0          17m 
+```
 <a name="manifests"></a>
 ## 3. Manifests
 
+### Front and Back Images
+To get connected front and back, we will build the `binarylavender/todo-front-distributed:v2` image by running the following command:
+```bash
+$ cd todo-front
+$ docker build --build-arg="API_HOST=http://lc.todo.info" -t binarylavender/todo-front-distributed:v2 .
+```
+Push to Docker Hub repository: `$ docker push binarylavender/todo-front-distributed:v2`
+
+### Kustomization
+
+```bash
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: todo
+resources:
+- todo-namespace.yaml
+- todo-api-configmap.yaml
+- todo-api-deployment.yaml
+- todo-api-service.yaml
+- todo-front-deployment.yaml
+- todo-front-service.yaml
+- todo-ingress.yaml
+```
+### Namespace
+```bash
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: todo
+```
+
+### ConfigMap
+```bash
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-api-cm
+data:
+  NODE_ENV: production
+  PORT: "3000"
+```
+
+### Todo-api deployment
+```bash
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-api-deployment
+  labels:
+    app: todo-api
+spec:  
+  selector:
+    matchLabels:
+      app: todo-api
+  template:
+    metadata:
+      labels:
+        app: todo-api
+    spec:
+      containers:
+      - name: todo-api
+        image: binarylavender/todo-api-distributed:v1
+        envFrom:
+        - configMapRef:
+            name: todo-api-cm      
+        ports:
+        - containerPort: 3000
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "250m"
+```
+
+### Todo-api service
+Service to expose the todo-api Deployment
+```bash
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-api-svc
+spec:
+  selector:
+    app: todo-api
+  ports:
+  - port: 3000
+    targetPort: 3000
+    name: http
+    protocol: TCP
+  type: NodePort
+```
+
+### Todo-front deployment
+```bash
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-front-deployment
+  labels:
+    app: todo-front
+spec:
+  selector:
+    matchLabels:
+      app: todo-front
+  template:
+    metadata:
+      labels:
+        app: todo-front  
+    spec:
+      containers:
+      - name: todo-front
+        image: binarylavender/todo-front-distributed:v2
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 80
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "250m"
+```
+
+### Todo-front service
+Service to expose the todo-front Deployment
+```bash
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-front-svc
+spec:
+  selector:
+    app: todo-front  
+  ports:
+  - port: 80
+    targetPort: 80
+  type: NodePort
+```
+
+### Ingress
+```bash
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo
+  labels:
+    name: todo
+  annotations:
+      INGRESS.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: lc.todo.info
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: todo-front-svc
+            port: 
+             number: 80
+      - pathType: Prefix
+        path: /api
+        backend:
+          service:
+            name: todo-api-svc
+            port: 
+              number: 3000
+```
 
 <a name="e2e"></a>
 ## 4. Deployment and end to end testing 
@@ -70,150 +268,144 @@ deployment.apps/todo-front-deployment created
 ingress.networking.k8s.io/todo created
 ```
 
-```
+``` bash
 $ kubectl get -k .
 NAME             STATUS   AGE
-namespace/todo   Active   7m38s
+namespace/todo   Active   50s
 
 NAME                    DATA   AGE
-configmap/todo-api-cm   2      7m38s
+configmap/todo-api-cm   2      50s
 
-NAME                     TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
-service/todo-api-svc     NodePort   10.103.251.158   <none>        3000:30821/TCP   7m38s
-service/todo-front-svc   NodePort   10.107.39.234    <none>        80:31885/TCP     7m38s
+NAME                     TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+service/todo-api-svc     NodePort   10.110.38.219   <none>        3000:32395/TCP   50s
+service/todo-front-svc   NodePort   10.106.106.96   <none>        80:32014/TCP     50s
 
 NAME                                    READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/todo-api-deployment     1/1     1            1           7m38s
-deployment.apps/todo-front-deployment   1/1     1            1           7m38s
+deployment.apps/todo-api-deployment     1/1     1            1           50s
+deployment.apps/todo-front-deployment   1/1     1            1           50s
 
-NAME                             CLASS   HOSTS          ADDRESS        PORTS   AGE
-ingress.networking.k8s.io/todo   nginx   lc.todo.info   192.168.49.2   80      7m38s
+NAME                             CLASS   HOSTS          ADDRESS         PORTS   AGE
+ingress.networking.k8s.io/todo   nginx   lc.todo.info   172.29.54.192   80      50s
 ```
 
-```
+Verify the Pods are running:
+```bash
 $ kubectl get pods -n todo
 NAME                                     READY   STATUS    RESTARTS   AGE
-todo-api-deployment-5cd6dc4fbc-cpjxg     1/1     Running   0          7m51s
-todo-front-deployment-6dfdbf58f8-5p759   1/1     Running   0          31s
+todo-api-deployment-5cd6dc4fbc-rjz5j     1/1     Running   0          73s
+todo-front-deployment-7d8644c66c-sk8ls   1/1     Running   0          73s
 ```
 
-```
-$ kubectl logs todo-front-deployment-6dfdbf58f8-5p759 -n todo
-/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
-/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
-/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
-10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
-10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
-/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
-/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
-/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
-/docker-entrypoint.sh: Configuration complete; ready for start up
-2024/01/24 20:25:33 [notice] 1#1: using the "epoll" event method
-2024/01/24 20:25:33 [notice] 1#1: nginx/1.25.3
-2024/01/24 20:25:33 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14)
-2024/01/24 20:25:33 [notice] 1#1: OS: Linux 5.10.102.1-microsoft-standard-WSL2
-2024/01/24 20:25:33 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
-2024/01/24 20:25:33 [notice] 1#1: start worker processes
-2024/01/24 20:25:33 [notice] 1#1: start worker process 29
-2024/01/24 20:25:33 [notice] 1#1: start worker process 30
-2024/01/24 20:25:33 [notice] 1#1: start worker process 31
-2024/01/24 20:25:33 [notice] 1#1: start worker process 32
-10.244.0.1 - - [24/Jan/2024:20:27:21 +0000] "GET / HTTP/1.1" 200 377 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0" "-"
-10.244.0.1 - - [24/Jan/2024:20:27:22 +0000] "GET /app.5cfa253021e0914308ee.js HTTP/1.1" 200 347237 "http://127.0.0.1:62062/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 
-Safari/537.36 Edg/120.0.0.0" "-"
-10.244.0.1 - - [24/Jan/2024:20:27:22 +0000] "GET /appStyles.0f296de458d0ffc030c5.js HTTP/1.1" 200 0 "http://127.0.0.1:62062/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0" "-"
-10.244.0.1 - - [24/Jan/2024:20:27:22 +0000] "GET /appStyles.css HTTP/1.1" 200 45 "http://127.0.0.1:62062/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0" "-"
-2024/01/24 20:27:22 [error] 31#31: *4 open() "/usr/share/nginx/html/favicon.ico" failed (2: No such file or directory), client: 10.244.0.1, server: localhost, request: "GET /favicon.ico HTTP/1.1", host: "127.0.0.1:62062", referrer: "http://127.0.0.1:62062/"
-10.244.0.1 - - [24/Jan/2024:20:27:22 +0000] "GET /favicon.ico HTTP/1.1" 404 555 "http://127.0.0.1:62062/" "Mozilla/5.0 (Windows NT 10.0; Win64; 
-x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0" "-"
-```
-![API_HOST_Error](./error-api_host-distributed.JPG)
-
-```
+```bash
 $ kubectl logs todo-api-deployment-5cd6dc4fbc-cpjxg -n todo
 execute
 Server running on port 3000
 ```
-Check the external IP
 
+Verify the todo-api service is created and is available on a node port:
+
+```bash
+$ kubectl get service todo-api-svc -n todo
+NAME           TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE  
+todo-api-svc   NodePort   10.110.38.219   <none>        3000:32395/TCP   6m38s
 ```
-$ kubectl get ingress
-NAME   CLASS   HOSTS       ADDRESS        PORTS   AGE
-todo   nginx   todo.info   192.168.49.2   80      5m12s
-```
+
+Visit the todo-api service via NodePort:
 
 ```shell
-C:\WINDOWS\system32>minikube service todo-api-svc -n todo
-|-----------|--------------|-------------|---------------------------|
-| NAMESPACE |     NAME     | TARGET PORT |            URL            |
-|-----------|--------------|-------------|---------------------------|
-| todo      | todo-api-svc |        3000 | http://192.168.49.2:30821 |
-|-----------|--------------|-------------|---------------------------|
-* Starting tunnel for service todo-api-svc.
-|-----------|--------------|-------------|------------------------|
-| NAMESPACE |     NAME     | TARGET PORT |          URL           |
-|-----------|--------------|-------------|------------------------|
-| todo      | todo-api-svc |             | http://127.0.0.1:56524 |
-|-----------|--------------|-------------|------------------------|
+minikube service todo-api-svc -n todo
+|-----------|--------------|-------------|----------------------------|
+| NAMESPACE |     NAME     | TARGET PORT |            URL             |
+|-----------|--------------|-------------|----------------------------|
+| todo      | todo-api-svc | http/3000   | http://172.29.54.192:32395 |
+|-----------|--------------|-------------|----------------------------|
 * Opening service todo/todo-api-svc in default browser...
-! Because you are using a Docker driver on windows, the terminal needs to be open to run it.
 ```
+
+The output is similar to: http://172.29.54.192:32395 
+
+![todo-api service](./todo-api-svc-distributed-minikube.JPG)
+
+```bash
+$ curl http://172.29.54.192:32395/api
+[]  
+```
+
+Verify the todo-front service is created and is available on a node port:
+
+```bash
+$ kubectl get service todo-front-svc -n todo
+NAME             TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE  
+todo-front-svc   NodePort   10.106.106.96   <none>        80:32014/TCP   6m18s
+```
+Visit the todo-front service via NodePort:
+
 ```shell
 C:\WINDOWS\system32>minikube service todo-front-svc -n todo
-|-----------|----------------|-------------|---------------------------|
-| NAMESPACE |      NAME      | TARGET PORT |            URL            |
-|-----------|----------------|-------------|---------------------------|
-| todo      | todo-front-svc |          80 | http://192.168.49.2:31885 |
-|-----------|----------------|-------------|---------------------------|
-* Starting tunnel for service todo-front-svc.
-|-----------|----------------|-------------|------------------------|
-| NAMESPACE |      NAME      | TARGET PORT |          URL           |
-|-----------|----------------|-------------|------------------------|
-| todo      | todo-front-svc |             | http://127.0.0.1:55744 |
-|-----------|----------------|-------------|------------------------|
+|-----------|----------------|-------------|----------------------------|
+| NAMESPACE |      NAME      | TARGET PORT |            URL             |
+|-----------|----------------|-------------|----------------------------|
+| todo      | todo-front-svc |          80 | http://172.29.54.192:32014 |
+|-----------|----------------|-------------|----------------------------|
+* Opening service todo/todo-front-svc in default browser...
 ```
+The output is similar to: http://172.29.54.192:32014 
+
 
 ```bash
-$ kubectl describe services todo-api-svc -n todo
-Name:                     todo-api-svc
-Namespace:                todo
-Labels:                   <none>
-Annotations:              <none>
-Selector:                 app=todo-api
-Type:                     NodePort
-IP Family Policy:         SingleStack
-IP Families:              IPv4
-IP:                       10.103.251.158
-IPs:                      10.103.251.158
-Port:                     <unset>  3000/TCP
-TargetPort:               3000/TCP
-NodePort:                 <unset>  30821/TCP
-Endpoints:                10.244.0.19:3000
-Session Affinity:         None
-External Traffic Policy:  Cluster
-Events:                   <none>
+$ curl http://172.29.54.192:32014
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Document</title><script defer="defer" src="app.86a4efbe2933bb434b8e.js"></script><script defer="defer" src="appStyles.0f296de458d0ffc030c5.js"></script><link href="appStyles.css" rel="stylesheet"></head><body><div id="root"></div></body></html>
 ```
 
+You can now access the todo application via the Minikube IP address and NodePort. 
+
+Verify the IP address of the ingress resource is set:
+
 ```bash
-$ kubectl describe services todo-front-svc -n todo
-Name:                     todo-front-svc
-Namespace:                todo
-Labels:                   <none>        
-Annotations:              <none>        
-Selector:                 app=todo-front
-Type:                     NodePort      
-IP Family Policy:         SingleStack   
-IP Families:              IPv4
-IP:                       10.107.39.234
-IPs:                      10.107.39.234
-Port:                     <unset>  80/TCP
-TargetPort:               http-web-svc/TCP
-NodePort:                 <unset>  31885/TCP
-Endpoints:                10.244.0.20:80
-Session Affinity:         None
-External Traffic Policy:  Cluster
-Events:                   <none>
+$ kubectl get ingress -n todo
+NAME   CLASS   HOSTS          ADDRESS         PORTS   AGE
+todo   nginx   lc.todo.info   172.29.54.192   80      11h
 ```
+
+Verify that the Ingress controller is directing traffic: 
+
+For that you can use "ad-hoc pinning" a web request directly to a specific IP address without using the site's public DNS records and can be accomplished by two ways:
+
+1. Via command-line with cURL's "--resolve" option, formatted --resolve [DOMAIN]:[PORT]:[IP], that routes all web requests performed during the execution of a cURL command that match a given [DOMAIN] and [PORT] to a specified [IP] address.
+
+    ```bash
+    $ curl --resolve "lc.todo.info:80:$( minikube ip )" -i http://lc.todo.info
+    HTTP/1.1 200 OK
+    Date: Tue, 30 Jan 2024 21:15:04 GMT
+    Content-Type: text/html
+    Content-Length: 377
+    Connection: keep-alive
+    Last-Modified: Thu, 25 Jan 2024 09:30:04 GMT
+    ETag: "65b22a1c-179"
+    Accept-Ranges: bytes
+
+    <!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Document</title><script defer="defer" src="app.86a4efbe2933bb434b8e.js"></script><script defer="defer" src="appStyles.0f296de458d0ffc030c5.js"></script><link href="appStyles.css" rel="stylesheet"></head><body><div id="root"></div></body></html>
+    ```
+
+    Note that `-i, --include` specify that the output should include the HTTP response headers. Example: curl -i http://lc.todo.info
+
+2. Via your system's configuration files by changing your /etc/hosts file
+
+   1. Look up the external IP address as reported by minikube:
+      ```bash
+      $ minikube ip
+      172.29.54.192
+      ```
+   2. Add line similar to the following one to the bottom of the /etc/hosts file on your computer (you will need administrator access): `172.29.54.192 lc.todo.info`
+  
+      Note: Change the IP address to match the output from minikube ip.
+
+      After you make this change, your web browser sends requests for a specified domain name "lc.todo.info" URLs to be routed from your local machine to to Minikube.
+    3. Visit lc.todo.info from your browser and add some tasks.
+  
+        ![ingress](./ingress-todo-front-distributed.JPG)
+        
+        ![todo-api](./ingress-todo-api-distributed.JPG)
 
 <a name="cleaning"></a>
 ## 5. Cleaning Up

@@ -6,6 +6,6 @@ spec:
   selector:
     app: todo-front  
   ports:
-  - port: 80   
-    targetPort: http-web-svc
+  - port: 80
+    targetPort: 80
   type: NodePort

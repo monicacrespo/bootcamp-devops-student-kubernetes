@@ -1,30 +1,26 @@
 # Monolith using Docker
 
-1. [How to run the monolith with Docker](#docker)
-2. [Cleaning Up](#cleaning)
+1. [How to run the monolith locally](#locally)
+2. [How to run the monolith with Docker](#docker)
+3. [Cleaning Up](#cleaning)
 
-<a name="docker"></a>
-## 1. How to run the monolith with Docker
+<a name="locally"></a>
+## 1. How to run the monolith locally
 
 Please follow these steps:
-1. Create the network
-   ```bash
-   cd ./01-monolith/todo-app
-   docker network create monolith-network
-   ```
-2. Start up a database to work locally. To create the container for postgres run the following command:
+1. Start up a database to work locally. To create the container for postgres run the following command:
    ```bash
    docker run -d --network monolith-network -p 5432:5432 -v todos:/var/lib/postgresql/data --name postgres postgres:10.4
    ```
 
-   Once the container is running, if the database was not initialized, populate the data by running the following commands:
+   Once the container is running, populate the data by running the following command:
 
    ```bash
     docker exec -i postgres psql -U postgres < todos_db.sql
    ```
    Notice that since we have a volume we will not need to run again the above code.
 
-3. Create .env with
+2. Create .env with
     ```env
     NODE_ENV=production
     PORT=3001
@@ -35,7 +31,19 @@ Please follow these steps:
     DB_NAME=todos_db    
     DB_VERSION=10.4
     ```
-4. Run the client application. 
+3. Running Applications
+   First we need to install dependencies, change directory to todo-app/frontend and run `npm install`, then change directory to /todo-app and run `npm install`. Once that all dependencies are installed, we can run the solution locally by changing directory to todo-app/frontend and running npm run start:dev:server.
+
+<a name="docker"></a>
+## 2. How to run the monolith with Docker
+
+Run the steps 1 and 2 from the previous section and then follow these steps:
+1. Create the network
+   ```bash
+   cd ./01-monolith/todo-app
+   docker network create monolith-network
+   ```
+2. Run the client application
    * For that first we need to create the image of our todo-app
       ```bash
       $ docker build -t binarylavender/todo-app-monolith:v1 . 
@@ -59,8 +67,8 @@ Please follow these steps:
          binarylavender/todo-app-monolith:v1
       ```
 <a name="cleaning"></a>
-## 2. Cleaning Up
+## 3. Cleaning Up
 
-      ```bash
-      docker network rm monolith-network
-      ```
+```bash
+docker network rm monolith-network
+```

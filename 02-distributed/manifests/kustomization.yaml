@@ -3,9 +3,9 @@ kind: Kustomization
 namespace: todo
 resources:
 - todo-namespace.yaml
-- todo-ingress.yaml
 - todo-api-configmap.yaml
-- todo-api-service.yaml
 - todo-api-deployment.yaml
+- todo-api-service.yaml
 - todo-front-deployment.yaml
 - todo-front-service.yaml
+- todo-ingress.yaml

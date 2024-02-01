@@ -43,7 +43,7 @@ Solution structure
 
 <a name="image"></a>
 ## 2. Create the image
-Create an image of the todo-app application:
+Create an image of the todo-app application
 
 ```bash
 docker build -f todo-app/Dockerfile -t binarylavender/todo-app-monolith-in-mem:v1 todo-app/ 

@@ -1,4 +1,4 @@
-# Monolith using Docker
+# Todo distributed app using Docker
 
 1. [How to run the todo distributed app locally](#locally)
 2. [How to run the todo distributed app with Docker](#docker)
@@ -10,10 +10,8 @@ Open two terminals, in one of them change directory to todo-api, and run npm run
 
 If you've got the following issue on todo-api when running npm start, `'ts-node' is not recognized as an internal or external command, operable program or batch file` you can add in the `todo-api/package.json` the following script: "dev:watch": "nodemon --exec npx ts-node ./src/app.ts"
 
-
 <a name="docker"></a>
 ## 2. How to run the todo distributed app with Docker
-
 
 Please follow these steps:
 1. Log in to Docker by executing the command: `$ docker login`. Enter your username and password.
@@ -43,6 +41,15 @@ Please follow these steps:
       ```bash
       docker build --build-arg="API_HOST=http://localhost:3000" -f todo-front/Dockerfile -t binarylavender/todo-front-distributed:v1 todo-front/
       ```
+
+      You can check that the images are created:
+
+      ```bash
+      $ docker image ls | grep "[^c]distributed"
+      binarylavender/todo-api-distributed                                           v1                                                      fc824d69c1ef   27 hours ago    93.4MB
+      binarylavender/todo-front-distributed                                         v1                                                      977ededd992b   28 hours ago    187MB
+      ```
+
    2. Push to Docker Hub repository:
       `$ docker push binarylavender/todo-front-distributed:v1`
 
@@ -58,18 +65,21 @@ Please follow these steps:
       You also can hit the backend http://localhost:3000/api/
 
       ![todo-api](./todo-api-distributed-docker.JPG)
-You can check that the images are created:
 
-```bash
-$ docker image ls | grep "[^c]distributed"
-binarylavender/todo-api-distributed                                           v1                                                      fc824d69c1ef   27 hours ago    93.4MB
-binarylavender/todo-front-distributed                                         v1                                                      977ededd992b   28 hours ago    187MB
-```
 
 <a name="cleaning"></a>
 ## 2. Cleaning Up
-You need to keep the images that will be used by the Kubernetes manifests. 
 
-      ```bash
-      docker network rm monolith-network
-      ```
+The `binarylavender/todo-api-distributed:v1` image will be used by the Kubernetes manifests. 
+
+To remove the `binarylavender/todo-front-distributed:v1` image use the following command:
+
+```bash
+docker image rm binarylavender/todo-front-distributed:v1
+```
+
+To remove the two containers run the following commands:
+```bash
+docker container rm todo-front-distributed
+docker container rm todo-api-distributed
+```
