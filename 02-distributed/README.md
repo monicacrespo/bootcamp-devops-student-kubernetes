@@ -1,8 +1,8 @@
-# DevOps - Lemoncode - Kubernetes
+# Todo Application - Ingress
 1. [Introduction](#intro)
 2. [Set up Ingress on Minikube with the NGINX Ingress Controller](#setupIngress)
 3. [Manifests](#manifests)
-4. [Deployment and end to end testing](e2e)
+4. [Deployment and end to end testing](#e2e)
 5. [Cleaning Up](#cleaning)
 
 <a name="intro"></a>

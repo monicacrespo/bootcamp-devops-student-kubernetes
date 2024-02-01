@@ -1,4 +1,4 @@
-# DevOps - Lemoncode - Kubernetes
+# Todo Application - Monolith in memory
 1. [Introduction](#intro)
 2. [Create the image](#image)
 3. [Create the deployment](#deploy)

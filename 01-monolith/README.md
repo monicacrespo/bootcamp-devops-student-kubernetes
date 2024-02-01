@@ -1,9 +1,9 @@
-# DevOps - Lemoncode - Kubernetes
+# Todo Application - Monolith - PostgreSQL
 1. [Introduction](#intro)
 2. [Create a data persistence layer](#persistence)
 3. [Create the todo-app image](#todo-app-image)
 4. [Create the todo-app client and the service](#todo-app)
-5. [End to end testing](e2e)
+5. [End to end testing](#e2e)
 
 <a name="intro"></a>
 ## 1. Introduction 
