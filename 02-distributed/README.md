@@ -4,7 +4,7 @@
 3. [Manifests](#manifests)
 4. [Deployment and end to end testing](#e2e)
 5. [Cleaning Up](#cleaning)
-
+6. [Ingress on Win10 and minikube using docker driver](#dockerdriver)
 <a name="intro"></a>
 
 ## 1. Introduction 
@@ -43,7 +43,9 @@ Solution structure
 
 My device is running in Windows, and I can't access Minikube (v1.31.2) Ingress on Docker-Driver. The reason is because, at this moment, January 2024, Ingress is supported out-of-the-box on linux only. See more information in [Docker Driver - Known issues #7332](https://github.com/kubernetes/minikube/issues/7332). 
 
-Them, for this exercise I will be using the [Hyper-V](https://minikube.sigs.k8s.io/docs/drivers/hyperv/) driver.
+Then, for this exercise I will be using the [Hyper-V](https://minikube.sigs.k8s.io/docs/drivers/hyperv/) driver.
+
+To use docker driver, please see section [Ingress on Win10 and minikube using docker driver](#dockerdriver).
 
 #### Enabling Hyper-V
 Open a PowerShell console as Administrator, and run the following command: 
@@ -421,3 +423,106 @@ deployment.apps "todo-api-deployment" deleted
 deployment.apps "todo-front-deployment" deleted
 ingress.networking.k8s.io "todo" deleted
 ```
+
+<a name="dockerdriver"></a>
+## 6. Ingress on Win10 and minikube using docker driver
+
+Please follow the following steps for ingress to forward the requests using docker driver on Windows and kubernetes:
+
+#### Set up Ingress
+```shell
+minikube delete --all
+```
+
+```shell
+minikube start --driver=docker
+```
+
+```shell
+minikube addons enable ingress
+* ingress is an addon maintained by Kubernetes. For any concerns contact minikube on GitHub.
+You can view the list of minikube maintainers at: https://github.com/kubernetes/minikube/blob/master/OWNERS
+* After the addon is enabled, please run "minikube tunnel" and your ingress resources would be available at "127.0.0.1"
+  - Using image registry.k8s.io/ingress-nginx/controller:v1.8.1
+  - Using image registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407
+  - Using image registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20230407
+* Verifying ingress addon...
+* The 'ingress' addon is enabled
+```
+```shell
+minikube addons enable ingress-dns
+* ingress-dns is an addon maintained by minikube. For any concerns contact minikube on GitHub.
+You can view the list of minikube maintainers at: https://github.com/kubernetes/minikube/blob/master/OWNERS
+* After the addon is enabled, please run "minikube tunnel" and your ingress resources would be available at "127.0.0.1"
+  - Using image gcr.io/k8s-minikube/minikube-ingress-dns:0.0.2
+* The 'ingress-dns' addon is enabled
+```
+
+Apply the manifests by running the command `$ kubectl apply -k .` and verify the pods are running succesfully.
+
+```shell
+minikube tunnel
+* Tunnel successfully started
+
+* NOTE: Please do not close this terminal as this process must stay alive for the tunnel to be accessible ...
+
+! Access to ports below 1024 may fail on Windows with OpenSSH clients older than v8.1. For more information, see: https://minikube.sigs.k8s.io/docs/handbook/accessing/#access-to-ports-1024-on-windows-requires-root-permission
+* Starting tunnel for service todo.
+```
+
+#### Using Port-Forwarding
+Set custom domain IP to 127.0.01 in %WINDIR%\System32\drivers\etc\hosts file, i.e. by adding line `127.0.0.1 lc.todo.info`.
+
+Start port forwarding to open a tunnel from host Virtual Machine port 80 to ingress-nginx-controller service (eventually pod) on port 80.
+
+```bash
+kubectl port-forward service/ingress-nginx-controller -n ingress-nginx 80:80
+Forwarding from 127.0.0.1:80 -> 80
+Handling connection for 80
+```
+
+Visit lc.todo.info from your browser to check that ingress is working on custom domain (but only when port forwarding is active).
+
+
+More information about the root cause in [ingres not forwarding the requests docker desktop for windows and kubernetes](https://stackoverflow.com/questions/70011639/ingress-not-forwarding-the-requests-docker-desktop-for-windows-and-kubernetes).
+
+#### Troubleshooting
+When running the port forwarding command I got the following error message:
+```
+Unable to listen on port 80: Listeners failed to create with the following errors: [unable to create listener: Error listen tcp4 127.0.0.1:80: bind: An attempt was made to access a socket in a way forbidden by its access permissions. unable to create listener: Error listen tcp6 [::1]:80: bind: An attempt was made to access a socket in a way forbidden by its access permissions.]
+error: unable to listen on any of the requested ports: [{80 80}]
+```
+
+You can view a list of which ports are excluded from your user by running this command:
+
+`netsh interface ipv4 show excludedportrange protocol=tcp`
+
+On my Windows 10 machine I get this output:
+
+```
+Protocol tcp Port Exclusion Ranges
+
+Start Port    End Port
+----------    --------
+        80          80
+        90          90
+        97          97
+      5357        5357
+     49676       49775
+     49776       49875
+     50000       50059     *
+     50128       50128
+     50161       50260
+     50489       50588
+     50603       50702
+     54902       55001
+     55002       55101
+     55102       55201
+     55202       55301
+     55402       55501
+     57511       57610
+     57611       57710
+
+* - Administered port exclusions.
+```
+In my case port 80 was occupied by IIS. What I did was turning off IIS.
