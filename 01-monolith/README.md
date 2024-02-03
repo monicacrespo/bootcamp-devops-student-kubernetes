@@ -1,13 +1,15 @@
 # Todo Application - Monolith - PostgreSQL
 1. [Introduction](#intro)
-2. [Create a data persistence layer](#persistence)
-3. [Create the todo-app image](#todo-app-image)
-4. [Create the todo-app client and the service](#todo-app)
-5. [End to end testing](#e2e)
+2. [How to run the monolith locally and with Docker](#locally)
+3. [Create a data persistence layer](#persistence)
+4. [Create the todo-app image](#todo-app-image)
+5. [Create the todo-app client and the service](#todo-app)
+6. [End to end testing](#e2e)
+7. [Cleaning Up](#cleaning)
 
 <a name="intro"></a>
 ## 1. Introduction 
-We've been asked by LemonCode team to create the Kubernetes resources to build a cluster like the following picture:
+We've been asked by LemonCode team to [create the Kubernetes resources to build a cluster](https://github.com/Lemoncode/bootcamp-devops-lemoncode/blob/master/02-orquestacion/exercises/01-monolith/exercise-monolith.md) like the following picture:
 
 ![monolith](./monolith.png)
 
@@ -46,9 +48,15 @@ Solution structure
 ├── monolith-official-postgres-image.md (new)
 ├── README.md (new)
 ```
+<a name="locally"></a>
+## 2. How to run the monolith locally and with Docker
+
+To run the monolith app locally, look at the steps in [run-solution-locally](./monolith-docker.md#1-how-to-run-the-monolith-locally).
+
+To run the monolith app with Docker, look at the steps in [run-solution-with-docker](monolith-docker.md#2-how-to-run-the-monolith-with-docker).
 
 <a name="persistence"></a>
-## 2. Create a data persistence layer
+## 3. Create a data persistence layer
 
 ### Create PostgreSQL image
 We need a base PostgreSQL image, version 10.4. And on top of the image, the `todos_db.sql` script is copied into `/docker-entrypoint-initdb.d` directory. Based on the postgres Official Image [here](https://hub.docker.com/_/postgres) any *.sql scripts found in that directory will be run when a Postgres container starts up. The `todos_db.sql` script creates the `todos_db` database and populates it.
@@ -437,7 +445,7 @@ todos_db=# SELECT * FROM todos;
 ```
 
 <a name="todo-app-image"></a>
-## 3. Create the todo-app image
+## 4. Create the todo-app image
 Create an image of the todo-app application:
 
 ```bash
@@ -456,7 +464,7 @@ binarylavender/todo-app-monolith                                              v1
 ```
 
 <a name="todo-app"></a>
-## 4. Create the todo-app client and the service
+## 5. Create the todo-app client and the service
 
 kustomization.yaml
 
@@ -599,7 +607,7 @@ Note that the `todo-app-service` has a external IP, so that is reachable from ou
 
 
 <a name="e2e"></a>
-## 5. End to end testing 
+## 6. End to end testing 
 
 First open in your browser: http://127.0.0.1:4000.
 
@@ -742,3 +750,22 @@ pg_commit_ts  pg_multixact   pg_stat       pg_wal
 pg_dynshmem   pg_notify      pg_stat_tmp   pg_xact
 ```
 
+
+<a name="cleaning"></a>
+## 7. Cleaning Up
+
+```bash
+$ kubectl delete -k todo-app-client/
+configmap "todo-app-cm" deleted
+service "todo-app-service" deleted
+deployment.apps "todo-app-deployment" deleted
+```
+
+```bash
+$ kubectl delete -k postgres/
+storageclass.storage.k8s.io "mysc" deleted
+configmap "postgres-cm" deleted
+service "postgres" deleted
+persistentvolume "mypv" deleted
+statefulset.apps "postgres" deleted
+```

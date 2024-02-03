@@ -9,7 +9,7 @@
 
 <a name="intro"></a>
 ## 1. Introduction
-We've been asked by LemonCode team to create the Kubernetes resources to build a cluster like the following picture:
+We've been asked by LemonCode team to create the [Kubernetes resources to build a cluster](https://github.com/Lemoncode/bootcamp-devops-lemoncode/blob/master/02-orquestacion/exercises/00-monolith-in-mem/exercise-monolith-in-memory.md) like the following picture:
 
 ![monolith in memory](../00-monolith-in-mem/monolith-in-mem.png)
 
@@ -40,6 +40,10 @@ Solution structure
 ├── todo-app-tasks.JPG (new)
 ├── README.md (new)
 ```
+To run the monolith in memory app locally, look at the steps provided by LemonCode in [run-solution-locally](https://github.com/Lemoncode/bootcamp-devops-lemoncode/blob/master/02-orquestacion/exercises/00-monolith-in-mem/README.md#run-solution-locally).
+
+To run the monolith in memory app with docker locally, look at the steps provided by LemonCode in [running-the-application-with-docker-on-local](
+https://github.com/Lemoncode/bootcamp-devops-lemoncode/blob/master/02-orquestacion/exercises/00-monolith-in-mem/README.md#running-the-application-with-docker-on-local).
 
 <a name="image"></a>
 ## 2. Create the image
@@ -59,6 +63,8 @@ $  docker image ls | grep todo-app-monolith-in-mem
 binarylavender/todo-app-monolith-in-mem                                       v1                                                      29f41f209efe   14 hours ago    95.2MB
             29f41f209efe   14 hours ago    95.2MB
 ```
+To build the image locally against the docker inside minikube, without pushing to Docker Hub repository, see section [How to build image against the docker inside minikube](#locally).
+
 <a name="deploy"></a>
 ## 3. Create the deployment
 

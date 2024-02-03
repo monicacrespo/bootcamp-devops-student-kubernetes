@@ -1,14 +1,16 @@
 # Todo Application - Ingress
 1. [Introduction](#intro)
-2. [Set up Ingress on Minikube with the NGINX Ingress Controller](#setupIngress)
-3. [Manifests](#manifests)
-4. [Deployment and end to end testing](#e2e)
-5. [Cleaning Up](#cleaning)
-6. [Ingress on Win10 and minikube using docker driver](#dockerdriver)
+2. [How to run the distributed locally and with Docker](#locally)
+3. [Set up Ingress on Minikube with the NGINX Ingress Controller](#setupIngress)
+4. [Manifests](#manifests)
+5. [Deployment and end to end testing](#e2e)
+6. [Cleaning Up](#cleaning)
+7. [Ingress on Win10 and minikube using docker driver](#dockerdriver)
+
 <a name="intro"></a>
 
 ## 1. Introduction 
-Create the Kubernetes resources to build a cluster like the following picture:
+We've been asked by LemonCode team to [create the Kubernetes resources to build a cluster](https://github.com/Lemoncode/bootcamp-devops-lemoncode/blob/master/02-orquestacion/exercises/02-distributed/exercise-ingress.md) like the following picture:
 
 ![distributed](./distributed.png)
 
@@ -35,8 +37,16 @@ Solution structure
 ├── README.md (new)
 ```
 
+<a name="locally"></a>
+## 2. How to run the distributed locally and with Docker
+
+To run the distributed app locally, look at the steps in [run-solution-locally](./distributed-docker.md#1-how-to-run-the-todo-distributed-app-locally).
+
+To run the distributed app with Docker, look at the steps in [run-solution-with-docker](./distributed-docker.md#2-how-to-run-the-todo-distributed-app-with-docker).
+
+
 <a name="setupIngress"></a>
-## 2. Set up Ingress on Minikube with the NGINX Ingress Controller
+## 3. Set up Ingress on Minikube with the NGINX Ingress Controller
 
 
 ### Create a minikube cluster
@@ -86,7 +96,7 @@ ingress-nginx-admission-patch-pr25q         0/1     Completed   1          17m
 ingress-nginx-controller-7799c6795f-sdcck   1/1     Running     0          17m 
 ```
 <a name="manifests"></a>
-## 3. Manifests
+## 4. Manifests
 
 ### Front and Back Images
 To get connected front and back, we will build the `binarylavender/todo-front-distributed:v2` image by running the following command:
@@ -257,7 +267,7 @@ spec:
 ```
 
 <a name="e2e"></a>
-## 4. Deployment and end to end testing 
+## 5. Deployment and end to end testing 
 
 ```bash
 $ kubectl apply -k .
@@ -410,7 +420,7 @@ For that you can use "ad-hoc pinning" a web request directly to a specific IP ad
         ![todo-api](./ingress-todo-api-distributed.JPG)
 
 <a name="cleaning"></a>
-## 5. Cleaning Up
+## 6. Cleaning Up
 
 Delete all the manifests.
 ```bash
@@ -425,7 +435,7 @@ ingress.networking.k8s.io "todo" deleted
 ```
 
 <a name="dockerdriver"></a>
-## 6. Ingress on Win10 and minikube using docker driver
+## 7. Ingress on Win10 and minikube using docker driver
 
 Please follow the following steps for ingress to forward the requests using docker driver on Windows and kubernetes:
 
