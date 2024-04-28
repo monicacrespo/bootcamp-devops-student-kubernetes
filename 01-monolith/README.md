@@ -6,6 +6,8 @@
 5. [Create the todo-app client and the service](#todo-app)
 6. [End to end testing](#e2e)
 7. [Cleaning Up](#cleaning)
+8. [Troubleshooting](#troubleshooting)
+
 
 <a name="intro"></a>
 ## 1. Introduction 
@@ -88,9 +90,7 @@ Create an `statefulset` kubernetes resource to have a Postgres database inside t
 
 * Config Map 
 * [Headless Service](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services).
-  StatefulSets require you to create a headless service to control their network identities. A headless service defines a port binding but has its clusterIP set to None.
-
-  The headless Service provides a home for the DNS entries that the StatefulSet controllers creates for each Pod that's part of the set. Because the headless Service is named postgres, the Pods are accessible by resolving <pod-name>.postgres from within any other Pod in the same Kubernetes cluster and namespace.
+  StatefulSets require you to create a headless service to control their network identities. A headless service defines a port binding but has its clusterIP set to None.  
 
 * [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
 
@@ -123,7 +123,7 @@ The key points here are:
 * To view Resources found in a directory containing a kustomization file without deploying them, run the following command: `kubectl apply -k <kustomization_directory>`
   
   ```bash
-  $ cd 01-monolith\k8s
+  $ cd 01-monolith\manifests
   ```
 
   ```bash
@@ -149,7 +149,22 @@ The key points here are:
   ```
 
 * Kustomize also supports composition of different resources defined in the resources field, in this case, it is comprised of the `postgres-storageclass.yaml`, `postgres-persistentvolume.yaml`, `postgres-service.yaml` and `postgres-statefulset.yaml` resources.
-   
+
+### Storage Class
+
+Cluster administrators need to be able to offer a variety of PersistentVolumes that differ in more ways than size and access modes, without exposing users to the details of how those volumes are implemented. For these needs, there is the StorageClass resource.
+
+Here is the configuration file for the StorageClass called `postgres-storageclass.yaml`:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: mysc
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: k8s.io/minikube-hostpath
+```
+
 ### Persistent Volume
 A PersistentVolume (PV) is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using Storage Classes.
 PVs are volume plugins like Volumes, but have a lifecycle independent of any individual Pod that uses the PV. This API object captures the details of the implementation of the storage, be that NFS, iSCSI, or a cloud-provider-specific storage system.
@@ -180,7 +195,7 @@ spec:
 ```
 A PV can have a class, which is specified by setting the storageClassName attribute to the name of a StorageClass. A PV of a particular class can only be bound to PVCs requesting that class. 
 
-The above configuration file specifies that the volume is at /data/mypv on the cluster's Node. The configuration also specifies a size of 512 megabytes and an access mode of ReadWriteOnce, which means the volume can be mounted as read-write by a single Node. It defines the StorageClass name manual for the PersistentVolume, which will be used to bind PersistentVolumeClaim requests to this PersistentVolume.
+The above configuration file specifies that the volume is at /tmp/mypv05 on the cluster's Node. The configuration also specifies a size of 256 megabytes and an access mode of ReadWriteOnce, which means the volume can be mounted as read-write by a single Node. It defines the StorageClass name manual for the PersistentVolume, which will be used to bind PersistentVolumeClaim requests to this PersistentVolume.
 
 Note that the [Reclaim Policy](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reclaim-policy) is set to Delete.
 
@@ -190,39 +205,6 @@ Current reclaim policies are:
 * Recycle -- basic scrub (rm -rf /thevolume/*)
 * Delete -- delete the volume
 
-### Storage Class
-
-Cluster administrators need to be able to offer a variety of PersistentVolumes that differ in more ways than size and access modes, without exposing users to the details of how those volumes are implemented. For these needs, there is the StorageClass resource.
-
-Here is the configuration file for the StorageClass called `postgres-storageclass.yaml`:
-```yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: mysc
-  annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
-provisioner: k8s.io/minikube-hostpath
-```
-
-### Service
-Here is the configuration file for the service called `postgres-service.yaml`:
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: postgres
-  name: postgres
-spec:
-  ports:
-    - port: 5432
-      name: postgres
-  clusterIP: None
-  selector:
-    app: postgres
-```
 
 ### Statefulset
 
@@ -297,16 +279,36 @@ The key points here are:
 
 * The volumeClaimTemplates field will provide stable storage using the PersistentVolume named `mypv` and the Storageclass `mysc`.
 
-  For each VolumeClaimTemplate entry defined in a StatefulSet, each Pod receives one PersistentVolumeClaim. 
-  A PersistentVolumeClaim (PVC) is a request for storage by a user. It is similar to a Pod. Pods consume node resources and PVCs consume PV resources. Pods can request specific levels of resources (CPU and Memory). Claims can request specific size and access modes (e.g., they can be mounted ReadWriteOnce, ReadOnlyMany, ReadWriteMany, or ReadWriteOncePod, see AccessModes).
+  For each VolumeClaimTemplate entry defined in a StatefulSet, each Pod receives one PersistentVolumeClaim (PVC). A PVC is a request for storage by a user. It is similar to a Pod. Pods consume node resources and PVCs consume PV resources. Pods can request specific levels of resources (CPU and Memory). Claims can request specific size and access modes (e.g., they can be mounted ReadWriteOnce, ReadOnlyMany, ReadWriteMany, or ReadWriteOncePod, see AccessModes).
   
   The above configuration file creates a PersistentVolumeClaim per each Pod that request a volume of a single PersistentVolume with a StorageClass of `mysc` and 256 Mi of provisioned storage.
 
   More information in [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims).
 
+### Service
 
-### Deployment and verifying your data persistence layer
-To apply all the above Resources, and create the Postgresql instance, run kubectl apply with --kustomize or -k flag:
+Here is the configuration file for the service called `postgres-service.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: postgres
+  name: postgres
+spec:
+  ports:
+    - port: 5432
+      name: postgres
+  clusterIP: None
+  selector:
+    app: postgres
+```
+
+The headless Service provides a home for the DNS entries that the StatefulSet controllers creates for each Pod that's part of the set. Because the headless Service is named `postgres`, and the stateful is named `postgres`, the Pods are accessible by resolving `postgres-0.postgres` (pod-name.service-name) from within any other Pod in the same Kubernetes cluster and namespace. See section [Connection issue between front-end and back-end pods](#networking).
+
+### Deployment and verifying the data persistence layer
+To apply all the above resources, and create the Postgresql instance, run kubectl apply with --kustomize or -k flag:
 
 ```bash
 $ kubectl apply -k postgres
@@ -351,7 +353,7 @@ NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
 postgres     ClusterIP   None         <none>        5432/TCP   51s
 ```
 
-Also, I can see that the database initialization script was executed correctly. The `todos` table exists and has the expected data:
+Also, the database initialization script was executed correctly because the `todos` table exists and has the expected data:
 ```
 $ kubectl exec -it postgres-0 -- psql -U postgres -d todos_db -c "SELECT * FROM todos;"
  id |     title     | completed |          due_date          | order 
@@ -488,7 +490,7 @@ generatorOptions:
 
 The key points here are:
 
-* Kustomize has configMapGenerator, which generates a ConfigMap called `todo-app-cm` from the `config/client.env` env file that contains the database configuration:
+* Kustomize has configMapGenerator, which generates a ConfigMap called `todo-app-cm` from the `config/client.env` env file that contains the environment and the port as well as the database configuration:
 
   ```
   NODE_ENV=production
@@ -569,8 +571,8 @@ The key points here are:
               cpu: 250m
               memory: 256Mi
   ```
-### Deployment and verifying your application layer
-To apply all the above Resources, run kubectl apply with --kustomize or -k flag:
+### Deployment and verifying the application layer
+To apply all the above resources, run the following command:
 
 ```bash
 $ kubectl apply -k todo-app-client
@@ -615,7 +617,7 @@ Let's add some tasks:
 
 ![](todo-app-tasks.JPG)
 
-Let's scale down the todo-app deployment and the statefulset.
+Let's scale down the `todo-app-deployment` deployment and the `postgres` statefulset.
 
 ```bash
 $ kubectl scale --replicas=0 deployment/todo-app-deployment
@@ -656,7 +658,7 @@ spec:
     whenScaled: Delete
 ...
 ```
-The optional .spec.persistentVolumeClaimRetentionPolicy field controls if and how PVCs are deleted during the lifecycle of a StatefulSet.
+The optional `.spec.persistentVolumeClaimRetentionPolicy` field controls if and how PVCs are deleted during the lifecycle of a StatefulSet.
 
 * Delete -> The PVCs created from the StatefulSet volumeClaimTemplate are deleted for each Pod affected by the policy. 
   * With the whenDeleted policy all PVCs from the volumeClaimTemplate are deleted after their Pods have been deleted. 
@@ -667,10 +669,10 @@ So the this is what is happening when scaling down:
 1. The `postgres-0` pod is deleted.
 2. The `todos-db-pv05-postgres-0` PVC corresponding to that pod being scaled down is deleted, based on the `whenScaled: Delete` policy of the Statefulset.
 3. The `mypv` PV is removed from Kubernetes, as well as the associated storage asset in the external infrastructure. Why? For two reasons:
-  * The `todos-db-pv05-postgres-0` PVC was bound to `mypv` PV.
-  * The `mypv` PV has a `persistentVolumeReclaimPolicy: Delete` policy set up. The [Reclaim Policy](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reclaiming) for a PersistentVolume tells the cluster what to do with the volume after it has been released of its claim.
+   * The `todos-db-pv05-postgres-0` PVC was bound to `mypv` PV.
+   * The `mypv` PV has a `persistentVolumeReclaimPolicy: Delete` policy set up. The [Reclaim Policy](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reclaiming) for a PersistentVolume tells the cluster what to do with the volume after it has been released of its claim.
 
-Once the pods are down, we scale them up we can verify that the data does not persist.
+Once the pods are down, if we scale them up we can verify that the data does not persist and only the initial entries are displayed "Learn Jenkins", "Learn GitLab" and "Learn K8s".
 
 ```bash
 $ kubectl scale --current-replicas=0 --replicas=1 sts/postgres
@@ -688,14 +690,14 @@ NAME                       STATUS   VOLUME                                     C
 todos-db-pv05-postgres-0   Bound    pvc-3eb6897b-3dad-429f-9351-778f10515987   256Mi      RWO            mysc           32s
 ```
 
-The output shows that the PersistentVolumeClaim is bound to a dynamic PersistentVolume called `pvc-3eb6897b-3dad-429f-9351-778f10515987`.
+The above output shows that the `todos-db-pv05-postgres-0` PVC is bound to a dynamic PersistentVolume called `pvc-3eb6897b-3dad-429f-9351-778f10515987`.
 
 ```bash
 $ kubectl get pv
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                              STORAGECLASS   REASON   AGE
 pvc-3eb6897b-3dad-429f-9351-778f10515987   256Mi      RWO            Delete           Bound    default/todos-db-pv05-postgres-0   mysc                    15s
 ```
-The output shows that the `pvc-3eb6897b-3dad-429f-9351-778f10515987` PersistentVolume has a STATUS of Bound to the `todos-db-pv05-postgres-0` PersistentVolumeClaim.
+The above output shows that the `pvc-3eb6897b-3dad-429f-9351-778f10515987` PersistentVolume has a STATUS of Bound to the `todos-db-pv05-postgres-0` PVC.
 
 What will happen if we add the "Learn AWS" entry and then delete all the resources of the cluster?. In this scenario, and based on that the `whenDeleted: Retain` policy of the Statefulset, the data will persist. And, the PersistentVolume associated with the Pod's PersistentVolume Claims is not deleted when the Pods, or StatefulSet are deleted. 
 
@@ -716,15 +718,15 @@ statefulset.apps "postgres" deleted
 ```
 
 ```bash
-$ kubectl get pv
-NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                              STORAGECLASS   REASON   AGE
-pvc-3eb6897b-3dad-429f-9351-778f10515987   256Mi      RWO            Delete           Bound    default/todos-db-pv05-postgres-0   mysc                    11m
-```
-
-```bash
 kubectl get pvc
 NAME                       STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
 todos-db-pv05-postgres-0   Bound    pvc-3eb6897b-3dad-429f-9351-778f10515987   256Mi      RWO            mysc           11m
+```
+
+```bash
+$ kubectl get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                              STORAGECLASS   REASON   AGE
+pvc-3eb6897b-3dad-429f-9351-778f10515987   256Mi      RWO            Delete           Bound    default/todos-db-pv05-postgres-0   mysc                    11m
 ```
 
 ![](todo-app-tasks-after-deletion.JPG)
@@ -769,3 +771,110 @@ service "postgres" deleted
 persistentvolume "mypv" deleted
 statefulset.apps "postgres" deleted
 ```
+<a name="troubleshooting"></a>
+## 8. Troubleshooting
+
+I had launched a postgresql server named `postgres-0` in minikube, and I was having difficulty connecting to it from the `todo-app-deployment` that is inside the cluster.
+
+
+The `postgres-0` pod is running successfully and its logs were OK:
+
+```
+$ kubectl logs postgres-0
+The files belonging to this database system will be owned by user "postgres".
+This user must also own the server process.
+The database cluster will be initialized with locale "en_US.utf8".
+The default database encoding has accordingly been set to "UTF8".
+The default text search configuration will be set to "english".
+Data page checksums are disabled.
+fixing permissions on existing directory /var/lib/postgresql/data ... ok
+creating subdirectories ... ok
+selecting default max_connections ... 100
+selecting default shared_buffers ... 128MB
+selecting dynamic shared memory implementation ... posix
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+Success. You can now start the database server using:
+    pg_ctl -D /var/lib/postgresql/data -l logfile start
+WARNING: enabling "trust" authentication for local connections
+You can change this by editing pg_hba.conf or using the option -A, or
+--auth-local and --auth-host, the next time you run initdb.
+waiting for server to start....2023-11-30 14:47:43.731 UTC [42] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2023-11-30 14:47:43.751 UTC [43] LOG:  database system was shut down at 2023-11-30 14:47:43 UTC
+2023-11-30 14:47:43.758 UTC [42] LOG:  database system is ready to accept connections
+ done
+server started
+CREATE DATABASE
+ALTER ROLE
+/usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+2023-11-30 14:47:44.220 UTC [42] LOG:  received fast shutdown request
+waiting for server to shut down....2023-11-30 14:47:44.222 UTC [42] LOG:  aborting any active transactions
+2023-11-30 14:47:44.225 UTC [42] LOG:  worker process: logical replication launcher (PID 49) exited with exit code 1
+2023-11-30 14:47:44.225 UTC [44] LOG:  shutting down
+2023-11-30 14:47:44.244 UTC [42] LOG:  database system is shut down
+ done
+server stopped
+PostgreSQL init process complete; ready for start up.
+2023-11-30 14:47:44.340 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2023-11-30 14:47:44.341 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2023-11-30 14:47:44.344 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2023-11-30 14:47:44.360 UTC [69] LOG:  database system was shut down at 2023-11-30 14:47:44 UTC
+2023-11-30 14:47:44.365 UTC [1] LOG:  database system is ready to accept connections
+2023-11-30 14:54:35.029 UTC [94] ERROR:  schema "test" does not exist at character 14
+2023-11-30 14:54:35.029 UTC [94] STATEMENT:  CREATE TABLE test.messages (message VARCHAR(250));
+2023-11-30 14:54:47.582 UTC [94] ERROR:  schema "dbo" does not exist at character 14
+2023-11-30 14:54:47.582 UTC [94] STATEMENT:  CREATE TABLE dbo.messages (message VARCHAR(250));
+```
+
+Below, the logs of the `todo-app-deployment` pod states `Error: getaddrinfo EAI_AGAIN postgres` meaning it can not connect to `postgres` which defines the host to connect to postgresql server. This value is defined in `DB_HOST=postgres` within the `config/client.env` file: 
+
+```
+$ kubectl logs todo-app-deployment-b54cf6f87-jrn2s
+execute
+Server running on port 3000
+(node:1) UnhandledPromiseRejectionWarning: Error: getaddrinfo EAI_AGAIN postgres
+    at GetAddrInfoReqWrap.onlookup [as oncomplete] (dns.js:66:26)
+(node:1) UnhandledPromiseRejectionWarning: Unhandled promise rejection. This error originated either by throwing inside of an async function without a catch block, or by rejecting a promise which was not handled with .catch(). To terminate the node process on unhandled promise rejection, use the CLI flag `--unhandled-rejections=strict` (see https://nodejs.org/api/cli.html#cli_unhandled_rejections_mode). (rejection id: 5)
+(node:1) [DEP0018] DeprecationWarning: Unhandled promise rejections are deprecated. In the future, promise rejections that are not handled will terminate
+the Node.js process with a non-zero exit code
+```
+
+That looked like a DNS issue and my minikube cluster was not able to resolve the hostname. That was the root cause and when I run the command `kubectl get pods -n kube-system` the output showed that the DNS server was not correctly set and the coredns pod was not running. Thanks to Jaime Salas for helping me to identify the issue. 
+
+To sort out the issue I deleted my local kubernetes cluster and started it again.
+
+```shell
+minikube delete --all
+```
+
+```shell
+minikube start --driver=docker
+```
+
+![kube-system-pods](./kube-system-pods.jpg)
+
+Then I did spin up a busybox pod and run `nslookup` command for troubleshooting network problems.
+
+nslookup requires DNS to work. A domain name system resolves a domain name to its IP address. Meanwhile, nslookup is a tool that allows users to request DNS nameservers for information about a hostname.
+
+```bash
+$ kubectl run -i --tty --image busybox:1.28 dns-test --restart=Never --rm
+
+If you don't see a command prompt, try pressing enter.
+/ # nslookup postgres-0.postgres
+Server:    xx.xx.x.xx
+Address 1: xx.xx.x.xx kube-dns.kube-system.svc.cluster.local
+
+Name:      postgres-0.postgres
+Address 1: yy.yyy.y.y postgres-0.postgres.default.svc.cluster.local
+/ # nslookup postgres
+Server:    xx.xx.x.xx
+Address 1: xx.xx.x.xx kube-dns.kube-system.svc.cluster.local       
+
+Name:      postgres
+Address 1: yy.yyy.y.y postgres-0.postgres.default.svc.cluster.local
+```
+
+The output showed that it could resolve by using `postgres-0.postgres` or `postgres`.
